@@ -1,0 +1,4 @@
+type:WST
+generate:HomeSource/favicon.ico
+description:HomeSource/description.txt
+id:0
