@@ -1,4 +1,7 @@
 import socket
+
+UniverseCookie = "20050119"
+
 class SocketConn:
     conn=None
     chunk=b''
@@ -9,7 +12,9 @@ class SocketConn:
                 line=self.chunk[:pos]
                 self.chunk=self.chunk[pos+1:]
                 ret=line.decode('utf-8')
-                return ret.replace(' ','')
+                ret=ret.replace(' ','')
+                if ret:
+                    return ret
             else:
                 data=self.conn.recv(4096)
                 if not data:

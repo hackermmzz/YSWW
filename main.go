@@ -11,6 +11,9 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	//初始化数据库
 	InitDatabase()
+	//
+	//初始化邮件发送模块
+	EmailSendInit()
 	//加载大模型
 	err:=ProcessAIModelInit()
 	if err!=nil{

@@ -51,6 +51,13 @@ type PortraitInfo struct{
 	status	bool
 }
 
+type RegistVerityCodeInfo struct{
+	account string
+	code	string
+	date 	string
+	status	bool
+}
+
 func (user*User) Print(){
 	fmt.Println("email:"+user.email+" password:"+user.passwd+" date:"+user.date+" vip:"+strconv.Itoa(user.vip))
 }

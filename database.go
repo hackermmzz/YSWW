@@ -440,3 +440,43 @@ func IncreasePlayCountById(id string) error{
 	return nil
 }
 
+func QueryAccountRegistCode(account string)([]RegistVerityCodeInfo,error){
+	cmd:="select code,date from RegistVerityCode where account="+MarkByQuo(account)+" and status=false "+"and date>=NOW() - INTERVAL 5 minute"
+	row,err:=db.Query(cmd)
+
+	if err!=nil{
+		return nil,err
+	}
+	ret:=make([]RegistVerityCodeInfo,0)
+	var info RegistVerityCodeInfo
+	for row.Next(){
+		err=row.Scan(&info.code,&info.date)
+		if err!=nil{
+			return nil,err
+		}
+		ret=append(ret,info)
+	}
+	return ret,nil
+}
+func UpdateAccountRegistCodeStatus(account string,code string)error{
+	cmd:="update RegistVerityCode set status=true where account="+MarkByQuo(account)+" and code="+MarkByQuo(code)
+	_,err:=db.Exec(cmd)
+
+	return err;
+}
+
+func AddAccountRegistCodeToTable(account string,code string)error{
+	cmd:="insert into RegistVerityCode(account,code) values("+MergeByCommaAndQuo(account,code)+")"
+	_,err:=db.Exec(cmd)
+	return err
+}
+
+func UpdateUserVIPStatus(account string,status bool)error{
+	status_s:="true"
+	if !status{
+		status_s="false"
+	}
+	cmd:="update users set vip="+status_s+" where email="+MarkByQuo(account);
+	_,err:=db.Exec(cmd)
+	return err
+}

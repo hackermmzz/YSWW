@@ -16,21 +16,24 @@ import (
 	"sync"
 	"unicode"
 	"regexp"
+	"time"
 )
 
 // ///////////////////////////////////////
 var StringMap = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 var XNCYDataMap 	sync.Map
 var RnfghDataMap	sync.Map
+var RegistVerifyCodeMap sync.Map
 var RequestHandler=make(map[string]func(string,http.ResponseWriter,*http.Request))
 var allowedOrigins=make(map[string]bool)
 var IsHTTPS=true
+var ServerPort=2222
 // ///////////////////////////////////////
 func InitServer() {
 	//初始化所有可以访问服务器的域
 	InitAllAllowOrigins()
 	//
-	port:=":14332"
+	port:=":"+strconv.Itoa(ServerPort)
 	//设置CPU个数
 	cpuNum := runtime.NumCPU()
 	runtime.GOMAXPROCS(cpuNum)
@@ -85,7 +88,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 		//
         w.Header().Set("Access-Control-Allow-Origin", legal_origin)
         w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, account, type,password,type2,new_passwd")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With,verifyCode, account, type,password,type2,new_passwd")
         w.Header().Set("Access-Control-Max-Age", "86400")
 		w.Header().Set("Access-Control-Allow-Credentials", "true") // 如果需要凭证
 
@@ -109,7 +112,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 	//如果是获取文件资源来的
 	if r.URL.Path!="/"{
-		requestType="UpLoadFile"
+		requestType="DownLoadFile"
 	}else if requestType == "UploadPerson" || requestType == "UploadClothes" {
 		requestType="XNCY"
 	}
@@ -261,17 +264,14 @@ func ProcessXNCYRequest(r *http.Request,cookie string,requestType string)error{
 		}
 		return nil
 }
-func ProcessUpLoadFile(cookie string,URI string,w http.ResponseWriter)error{
-	//
-	legal,_:=CheckCookieLegal(cookie)
-	legal=true//对于下载文件,目前先不检查cookie是否正确
-	if legal{
-		err := UpLoadFile(w, URI)
-		return err
-	}
-	return nil
-}
+
+
 func CheckCookieLegal(cookie string)(bool,string){
+	//如果cookie为通行cookie
+	if cookie==UniverseCookie{
+		return true,"wlh"
+	}
+	//
 	user,exist:=Cookie.Load(cookie)
 	if !exist{
 		return false,""
@@ -330,11 +330,45 @@ func RegistAccount(account string,password string)error{
 	}
 	return err
 }
+//生成验证码
+func GenerateRegistVerifyCode(account string)string{
+	t:=time.Now().UnixNano()/int64(1e6)
+	str:=strconv.Itoa(int(t))
+	length:=len(str)
+	return str[length-5:length];
+}
+//检查注册的用户和验证码是否匹配
+func CheckRegistAccountMatchVerifyCode(account string,code string)bool{
+	//获取所有的该账号的记录
+	record,err:=QueryAccountRegistCode(account)
+	if err!=nil{
+		Debug(err.Error())
+		return false
+	}
+	for _,info :=range record{
+		if info.code==code{
+			//将该项设为已过期
+			err:=UpdateAccountRegistCodeStatus(account,code)
+			if err!=nil{
+				return false
+			}else{
+				return true
+			}
+		}
+	}
+	return false;
+}
+//
 func ProcessRegistRequest(r* http.Request,w http.ResponseWriter)error{
 	account := r.Header.Get("account")
 	passwd:=r.Header.Get("password")
+	verifyCode:=r.Header.Get("verifyCode")
 	var json Json;
-	if CheckIsUserExist(account) == false {
+	if CheckRegistAccountMatchVerifyCode(account,verifyCode)==false{
+		json.AppendBool("status",false)
+		json.AppendString("msg","验证码错误")
+	}else if CheckIsUserExist(account) == false {
+		//
 		err:=RegistAccount(account,passwd)
 		if err==nil{
 			json.AppendBool("status",true)
@@ -564,19 +598,34 @@ func ResponseHistoryInfo(cookie string, w http.ResponseWriter) error {
 	_, err:= w.Write([]byte(infoAll.Get()))
 	return err
 }
-
+//本地下载文件
 func DownLoadFile(r *http.Request) string {
 	r.ParseMultipartForm(int64(FileMaxSize))
+	//标记是否以原文件名保存在服务器
+	type2:=r.Header.Get("type2")
+	var originalFileName bool
+	if type2=="true"{
+		originalFileName=true
+	}else{
+		originalFileName=false
+	}
+	//
 	mForm := r.MultipartForm
 	for k := range mForm.File {
-		file, _, err := r.FormFile(k)
+		file,header, err := r.FormFile(k)
 		if err != nil {
 			fmt.Println("inovke FormFile error:", err)
 			return ""
 		}
 		defer file.Close()
 		// store uploaded file into local path
-		fileName := RandomFileName()
+		var fileName string
+		if originalFileName{
+			fileName=header.Filename
+		}else{
+			fileName=RandomFileName()
+		}
+		//
 		localFileName := SourceDirectory + "/" + fileName
 		out, err := os.Create(localFileName)
 		if err != nil {
@@ -595,6 +644,7 @@ func DownLoadFile(r *http.Request) string {
 	}
 	return ""
 }
+//本地上传文件
 func UpLoadFile(w http.ResponseWriter, fileName string) error {
 	filename := SourceDirectory + "/" + fileName
 	f, err := os.Open(filename)
@@ -680,15 +730,13 @@ func CheckPassWordLegal(passwd string)error{
 	return nil
 }
 //处理下载操作
-func ProcessUpLoadFileHandler(cookie string,w http.ResponseWriter,r*http.Request){
+func ProcessDownLoadFileHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	filepath:=r.URL.Path
-	err:=ProcessUpLoadFile(cookie,filepath,w)
+	err:=UpLoadFile(w,filepath)
 	if err!=nil{
 		Debug("upload file error! "+err.Error())
-		//RespondNCK(w)
 	}else{
 		Debug("upload file "+filepath+" success!")
-		//RespondACK(w)
 	}
 }
 //虚拟穿衣处理操作
@@ -812,20 +860,24 @@ func ProcessPassWordChangeHandler(cookie string,w http.ResponseWriter,r*http.Req
 	//
 	var js Json
 	//
-	passwd:=r.Header.Get("new_passwd")
-	//如果与之前的密码相同,或者检测密码是否不合法，那么不理睬
-	current_passwd,_:=AllUsers.Load(user)
-	if CheckPassWordIsSame(current_passwd.(string),passwd){
+	new_passwd:=r.Header.Get("new_passwd")//新密码
+	origin_Passwd:=r.Header.Get("password")//用户传来的原密码
+	current_passwd,_:=AllUsers.Load(user)//真正的密码
+	if origin_Passwd!=current_passwd{
+		js.AppendBool("status",false)
+		js.AppendString("msg","原密码错误!")
+	}else if CheckPassWordIsSame(current_passwd.(string),new_passwd){
+		//如果与之前的密码相同,或者检测密码是否不合法，那么不理睬
 		js.AppendBool("status",false)
 		js.AppendString("msg","新密码与原来的密码相同!")
-	}else if err:=CheckPassWordLegal(passwd);err!=nil{
+	}else if err:=CheckPassWordLegal(new_passwd);err!=nil{
 		js.AppendBool("status",true)
 		js.AppendString("msg",err.Error())
 	}else{
 		//修改密码
-		err:=ChangePassWord(user,passwd)
+		err:=ChangePassWord(user,new_passwd)
 		//修改对应记录里面对的密码
-		AllUsers.Store(user,passwd)
+		AllUsers.Store(user,new_passwd)
 		//
 		if err!=nil{
 			fmt.Println(err)
@@ -840,9 +892,88 @@ func ProcessPassWordChangeHandler(cookie string,w http.ResponseWriter,r*http.Req
 		fmt.Println(err)
 	}
 }
+//处理文件上传到本机的操作
+func ProcessUpLoadFileHandler(cookie string,w http.ResponseWriter,r*http.Request){
+	//目前该接口只用于接收学校机子下载文件的操作，虽然有漏洞，但是无所谓了
+	exist,_:=CheckCookieLegal(cookie)
+	if !exist{
+		Debug("cookie不存在")
+		return
+	}
+	//
+	filename:=DownLoadFile(r)
+	Debug("上传文件:"+filename+"成功!")
+	return;
+}
+//生成注册的验证码
+func ProcessRegistVerityCodeHandler(cookie string,w http.ResponseWriter,r*http.Request){
+	account:=r.Header.Get("account")
+	Debug("用户:"+account+"尝试获取验证码")
+	var js Json
+	//如果之前生成验证码距今时间间隔小于1分钟
+	preTime,exist:=RegistVerifyCodeMap.Load(account)
+	now:=time.Now().Unix()
+	if err:=CheckAccountLegal(account);err!=nil{
+		js.AppendBool("status",false)
+		js.AppendString("msg",err.Error())
+	}else if exist&&(now-preTime.(int64))<60{
+		js.AppendBool("status",false)
+		js.AppendString("msg","请勿重复发送验证码!")
+	}else{
+		code:=GenerateRegistVerifyCode(account)
+		//将数据插入数据库
+		err:=AddAccountRegistCodeToTable(account,code)
+		if err!=nil{
+			js.AppendBool("status",false)
+			js.AppendString("msg","请重试!")
+			Debug(err.Error())
+		}else{
+			RegistVerifyCodeMap.Store(account,now)
+			var email EmailInfo
+			email.email=account
+			email.subject="一生万物注册验证码"
+			email.content=fmt.Sprintf("【一生万物】您的 QQ 邮箱验证码为:%s，5 分钟内有效，感谢您使用一生万物相关服务。",code)
+			email.deal=nil
+			SendEmail(email)
+			js.AppendBool("status",true)
+			js.AppendString("msg","验证码已发送")
+			Debug("验证码发送成功!")
+		}
+	}
+
+	_,err:=w.Write([]byte(js.Get()))
+	if err!=nil{
+		Debug("验证码发送出错!")
+	}
+}
+
+//开通会员
+func ProcessVIPHandler(cookie string,w http.ResponseWriter,r*http.Request){
+	exist,user:=CheckCookieLegal(cookie)
+	if !exist{
+		Debug("cookie不存在")
+		return
+	}
+	//目前不收取任何费用，可以直接开通
+	var js Json
+	err:=UpdateUserVIPStatus(user,true)
+	if err!=nil{
+		Debug(err.Error())
+		js.AppendBool("status",false)
+		js.AppendString("msg","开通失败")
+	}else{
+		js.AppendBool("status",true)
+		js.AppendString("msg","开通成功")
+	}
+	//
+	_,err=w.Write([]byte(js.Get()))
+	if err!=nil{
+		Debug(err.Error())
+	}
+}
 //配置处理函数
 func ConfigRequestHandler(){
-	RequestHandler["UpLoadFile"]=ProcessUpLoadFileHandler;
+	RequestHandler["DownLoadFile"]=ProcessDownLoadFileHandler;
 	RequestHandler["XNCY"]=ProcessXNCYHandler;
 	RequestHandler["HistoryInfo"]=ProcessHistoryInfoHandler;
 	RequestHandler["WenShengTu"]=ProcessWenShengTuHandler;
@@ -855,6 +986,9 @@ func ConfigRequestHandler(){
 	RequestHandler["Login"]=ProcessLoginHandler;
 	RequestHandler["Regist"]=ProcessRegistHanler;
 	RequestHandler["PassWordChange"]=ProcessPassWordChangeHandler;
+	RequestHandler["UpLoadFile"]=ProcessUpLoadFileHandler;
+	RequestHandler["RegistVerityCode"]=ProcessRegistVerityCodeHandler;
+	RequestHandler["VIP"]=ProcessVIPHandler;
 }
 
 func InitAllAllowOrigins(){

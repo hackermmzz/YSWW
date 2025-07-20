@@ -1,73 +1,18 @@
 package main
 
 import (
-	"path/filepath"
-	"bufio"
-	"errors"
-	"fmt"
-	"net"
 	"sync"
-	"strconv"
 )
-//
-type SocketConn struct {
-	name  	string
-	conn    net.Conn
-	scanner *bufio.Scanner
-	lock 	sync.RWMutex
-}
-
+//所有的模型通过socket通信实现生成
 var (
 	ModelProcess = make(map[string]*SocketConn)
 )
-
-func (c *SocketConn) Write(msg ...string) error {
-	//提前上锁,防止出现意外
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	//
-	for _, arg := range msg {
-		_, err := fmt.Fprintf(c.conn, "%s", arg+"\n")
-		if err != nil {
-			return errors.New("写入失败")
-		}
-	}
-	return nil
-}
-func (c *SocketConn) Read() (string, error) {
-	//读取不需要加互斥锁
-	if c.scanner.Scan() {
-		return c.scanner.Text(), nil
-	}
-	return "", c.scanner.Err()
-}
-func MakeSocketConn(name string, port int) (*SocketConn, error) {
-	listener, err := net.Listen("tcp", "localhost:"+strconv.Itoa(port))
-	if err != nil {
-		return nil, err
-	}
-	//接受客户端连接
-	fmt.Println("开始监听端口:"+strconv.Itoa(port))
-	conn, err := listener.Accept()
-	//
-	if err != nil {
-		return nil, err
-	}
-	//
-	ret := &SocketConn{
-		name:     name,
-		conn:    conn,
-		scanner: bufio.NewScanner(conn),
-	}
-	//
-	return ret, nil
-}
 //统一处理管道
 func ProcessAIChannel(type_ string,name string,update_fun func(string)error){
-	cmd:=ModelProcess[type_]
+	channel:=ModelProcess[type_]
 	//目前只根据generate来定位一条记录
 	for{
-		generate,err:=cmd.Read()
+		generate,err:=channel.Read()
 		if err!=nil{
 			Debug(name+"处理管道出现问题!"+err.Error())
 		}else{
@@ -102,6 +47,7 @@ func ProcessKouTuChannel(){
 }
 //处理化所有处理管道
 func ProcessAIFinishChannel(){
+	return
 	//虚拟穿衣
 	go ProcessXNCYChannel()
 	//人脸风格化
@@ -118,10 +64,10 @@ func ProcessAIModelInit()error{
 	g_err:=make([]error,0)
 	var wait sync.WaitGroup
 	var lock sync.RWMutex
-	port:=15263//socket通信端口起始地址
 	//配置加载模型数组
 	name:=[...]string{"虚拟穿衣","人脸风格化","文生图","人脸肖像化","智能抠图"};
 	key:=[...]string{"XNCY","RLFGH","WST","Portrait","KouTu"};
+	port:=[...]int{XNCYChannelPort,RLFGHChannelPort,WSTChannelPort,PortraitChannelPort,KouTuChanelPort};
 	//
 	modelCnt:=len(name)//加载5个模型
 	wait.Add(modelCnt)
@@ -129,16 +75,14 @@ func ProcessAIModelInit()error{
 	for i:=0;i<modelCnt;i+=1{
 		go func(i int){
 			defer wait.Done()
-			cmd,err:=MakeSocketConn(name[i],port+i)
+			channel,err:=MakeSocketConn(name[i],port[i])
 			//
 			lock.Lock()
 			defer lock.Unlock()
 			//
-			ModelProcess[key[i]]=cmd
+			ModelProcess[key[i]]=channel
 			if err!=nil{
 				g_err=append(g_err,err)
-			}else{
-				Debug(name[i]+"模型加载成功")
 			}
 		}(i)
 	}
@@ -165,68 +109,13 @@ func ProcessAIModel(model_type string,user string,arguments map[string]interface
 		ProcessKouTu(user,arguments["image"].(string))
 	}
 }
-func ProcessRlfgh(user string ,face string,wordFile string){
-	wordFilePath, err := filepath.Abs(SourceDirectory+"/"+wordFile)
-	if err != nil {
-		Debug("can't get absolute path: " + wordFile)
-	}
-	faceFilePath,err1 := filepath.Abs(SourceDirectory+"/"+face)
-	if err1 != nil {
-		Debug("can't get absolute path: " + faceFilePath)
-	}
-	
-	//
-	merge:=RandomFileNameWithSuffix(".png")
-	//
-	cmd :=ModelProcess["RLFGH"] 
-	err=cmd.Write(faceFilePath,wordFilePath,SourceDirectory,merge)//写入参数
-	if err!=nil{
-		Debug("写入人脸风格化管道失败!")
-	}
-	//向数据库加入一条记录
-	err= AddDataToRLFGH(user,face,wordFile,merge)
-	if err != nil {
-		Debug(err.Error())
-	}
-}
-func ProcessWST(user string, wordFile string) {
-	wordFilePath, err := filepath.Abs(SourceDirectory+"/"+wordFile)
-	if err != nil {
-		Debug("can't get absolute path: " + wordFile)
-	}
-	
-	
-	//
-	merge:=RandomFileNameWithSuffix(".png")
-	//
-	cmd :=ModelProcess["WST"] 
-	err=cmd.Write(wordFilePath,SourceDirectory,merge)
-	if err!=nil{
-		Debug("写入文生图管道失败!")
-	}
-	//
-	err = AddDataToWST(user,wordFile,merge)
-	if err != nil {
-		Debug(err.Error())
-	}
-}
 func ProcessXNCY(user string, person string, clothes string) {
-	// 获取绝对路径
-	personPath, err := filepath.Abs(SourceDirectory+"/"+person)
-	if err != nil {
-		Debug("can't get absolute path: " + person)
-	}
-	clothesPath, err := filepath.Abs(SourceDirectory+"/"+clothes)
-	if err != nil {
-		Debug("can't get absolute path: " + clothes)
-		return
-	}
-	
+	var err error
 	// 执行SourceProcessProgram并获取输出值
 	merge := RandomFileNameWithSuffix(".png")
 	//
-	cmd:=ModelProcess["XNCY"]
-	err=cmd.Write(personPath,clothesPath,SourceDirectory,merge)
+	channel:=ModelProcess["XNCY"]
+	err=channel.Write(person,clothes,merge)
 	if err!=nil{
 		Debug("写入虚拟穿衣管道失败!")
 	}
@@ -236,19 +125,49 @@ func ProcessXNCY(user string, person string, clothes string) {
 		Debug(err.Error())
 	}
 }
-func ProcessPortrait(user string,face string){
-	// 获取绝对路径
-	facePath, err := filepath.Abs(SourceDirectory+"/"+face)
-	if err != nil {
-		Debug("can't get absolute path: " + face)
+
+func ProcessWST(user string, wordFile string) {
+	var err error
+	//
+	merge:=RandomFileNameWithSuffix(".png")
+	//
+	channel :=ModelProcess["WST"] 
+	err=channel.Write(wordFile,merge)
+	if err!=nil{
+		Debug("写入文生图管道失败!")
 	}
-	
+	//
+	err = AddDataToWST(user,wordFile,merge)
+	if err != nil {
+		Debug(err.Error())
+	}
+}
+
+func ProcessRlfgh(user string ,face string,wordFile string){
+	var err error
+	//
+	merge:=RandomFileNameWithSuffix(".png")
+	//
+	channel :=ModelProcess["RLFGH"] 
+	err=channel.Write(face,wordFile,merge)//写入参数
+	if err!=nil{
+		Debug("写入人脸风格化管道失败!")
+	}
+	//向数据库加入一条记录
+	err= AddDataToRLFGH(user,face,wordFile,merge)
+	if err != nil {
+		Debug(err.Error())
+	}
+}
+
+func ProcessPortrait(user string,face string){
+	var err error
 	// 执行SourceProcessProgram并获取输出值
 	merge := RandomFileNameWithSuffix(".png")
 
 	//
-	cmd :=ModelProcess["Portrait"] 
-	err=cmd.Write(facePath,SourceDirectory,merge)
+	channel :=ModelProcess["Portrait"] 
+	err=channel.Write(face,merge)
 	if err!=nil{
 		Debug("写入人脸肖像化管道失败!")
 	}
@@ -259,18 +178,13 @@ func ProcessPortrait(user string,face string){
 	}
 }
 func ProcessKouTu(user string,image string){
-	// 获取绝对路径
-	imagePath, err := filepath.Abs(SourceDirectory+"/"+image)
-	if err != nil {
-		Debug("can't get absolute path: " + image)
-	}
-	
+	var err error
 	// 执行SourceProcessProgram并获取输出值
 	merge := RandomFileNameWithSuffix(".png")
 
 	//
-	cmd :=ModelProcess["KouTu"] 
-	err=cmd.Write(imagePath,SourceDirectory,merge)
+	channel :=ModelProcess["KouTu"] 
+	err=channel.Write(image,merge)
 	if err!=nil{
 		Debug("写入抠图管道失败!")
 	}
