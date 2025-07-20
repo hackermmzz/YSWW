@@ -1,31 +1,28 @@
 package main
 import(
-	"sync"
+	"net/http"
+	"strconv"
 )
 //发送的邮件需要的信息
 type EmailInfo struct{
 	email 	string	//邮箱
 	subject	string 	//主题
 	content	string 	//内容
-	deal	func(string)	//处理函数
+	deal	func(string)	//处理函数(目前暂不使用)
 }
 //
 var (
 	EmailSockChannel  *SocketConn	//通道
-	EmailInfoSendLock	sync.RWMutex
-	EmailInfoSendQueue	[]EmailInfo//队列 
+	EmailInfoSendQueue	SyncQueue[EmailInfo]//队列 
 )
 
 func SendEmail(email EmailInfo){
-	EmailInfoSendLock.Lock()
-	defer EmailInfoSendLock.Unlock()
-	//
-	EmailInfoSendQueue=append(EmailInfoSendQueue,email)
+	EmailInfoSendQueue.push(email)
 }
 
 //初始化邮件发送协程
 func EmailSendInit()error{
-	EmailInfoSendQueue=make([]EmailInfo,0)
+	/*(这个方法解耦度太低，目前暂停使用)
 	//等待连接
 	var err error
 	EmailSockChannel,err=MakeSocketConn("邮箱发送",EmailChannelPort)
@@ -59,5 +56,37 @@ func EmailSendInit()error{
 			}
 		}
 	}()
+	*/
 	return nil
+}
+//处理邮箱模块向服务器的请求
+func ProcessSendEmailRequestHandler(cookie string,w http.ResponseWriter,r*http.Request){
+	//如果不是内部cookie,不做处理
+	if !CheckCookieUsedPrivate(cookie){
+		Debug("cookie不合法")
+		return
+	}
+
+	//这里直接发送当前所有的待发送邮件给模块
+	EmailInfoSendQueue.hold()
+	defer EmailInfoSendQueue.release()
+	cnt:=len(EmailInfoSendQueue.queue)
+	var resp Json
+	for idx,info:=range EmailInfoSendQueue.queue{
+		var resp_ Json
+		//
+		resp_.AppendString("email",info.email)
+		resp_.AppendString("subject",info.subject)
+		resp_.AppendString("content",info.content)
+		//
+		resp.AppendJson(strconv.Itoa(idx),resp_)
+	}
+	//清空队列
+	EmailInfoSendQueue.queue=make([]EmailInfo,0)
+	_,err:=w.Write([]byte(resp.Get()))
+	if err!=nil{
+		Debug("发送邮件消息队列失败!")
+	}else if cnt!=0{
+		Debug("已经处理目前为止所有的邮箱验证!")
+	}
 }

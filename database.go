@@ -10,6 +10,7 @@ import (
 	"strings"
 	_ "github.com/go-sql-driver/mysql"
 	"sync"
+	"time"
 )
 
 // //////////////////////////////
@@ -39,7 +40,16 @@ var (
 
 // 调试函数
 func Debug(message string) {
-	fmt.Println(message)
+	now:=time.Now()
+	//获取当前时间
+	year := strconv.Itoa(now.Year())     
+	month := strconv.Itoa(int(now.Month()))  
+	day := strconv.Itoa(now.Day())  
+	hour:=strconv.Itoa(now.Hour())
+	minute:=strconv.Itoa(now.Minute())
+	second:=strconv.Itoa(now.Second())
+	time_:=year+"-"+month+"-"+day+"-"+hour+"点"+minute+"分"+second+"秒"
+	fmt.Println(time_+" "+message)
 }
 
 //
@@ -378,6 +388,7 @@ func AddDataToKouTu(user string,image string,merge string) error{
 	}
 	return nil
 }
+//由于服务器保证文件名一定唯一，所有统一使用这个来更新表格
 func UpdateGenerateStatus(generate string,table string)error{
 	cmd:="update "+table+" set status=true where generate="+MarkByQuo(generate);
 	_,err:=db.Exec(cmd)
@@ -402,6 +413,7 @@ func UpdateRLFGHStatus(generate string)error{
 func UpdateKouTuStatus(generate string)error{
 	return  UpdateGenerateStatus(generate,"KouTu")
 }
+//
 func AddNewIdToPlayCountTable(id string) error{
 	cmd:="insert into PlayCount values("+id+",1)"//it is not zero because wlh is hero
 	_, err := db.Exec(cmd)

@@ -15,6 +15,7 @@ type User struct {
 }
 
 type XNCYInfo struct{
+	account	string
 	person string
 	clothes string
 	generate  string
@@ -22,7 +23,16 @@ type XNCYInfo struct{
 	status	bool
 }
 
+type WSTInfo struct{
+	account	string
+	description string
+	generate string
+	date 	string
+	status	bool
+}
+
 type RLFGHInfo struct{
+	account	string
 	face string
 	description string
 	generate string
@@ -30,22 +40,17 @@ type RLFGHInfo struct{
 	status	bool
 }
 
-type WSTInfo struct{
-	description string
+type PortraitInfo struct{
+	account	string
+	person string
 	generate string
 	date 	string
 	status	bool
 }
 
 type KouTuInfo struct{
+	account	string
 	image string
-	generate string
-	date 	string
-	status	bool
-}
-
-type PortraitInfo struct{
-	person string
 	generate string
 	date 	string
 	status	bool

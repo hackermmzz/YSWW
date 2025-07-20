@@ -1,12 +1,20 @@
 package main
 
 import (
-	"sync"
+	"net/http"
+	"strconv"
 )
+//
 //所有的模型通过socket通信实现生成
 var (
-	ModelProcess = make(map[string]*SocketConn)
+	ModelProcess = make(map[string]*SocketConn) //目前不使用
+	XNCYQueue		SyncQueue[XNCYInfo]	
+	WSTQueue		SyncQueue[WSTInfo]
+	RLFGHQueue		SyncQueue[RLFGHInfo]
+	PortraitQueue	SyncQueue[PortraitInfo]
+	KouTuQueue		SyncQueue[KouTuInfo]
 )
+/*目前不使用socket面向消息传递,大幅度解耦
 //统一处理管道
 func ProcessAIChannel(type_ string,name string,update_fun func(string)error){
 	channel:=ModelProcess[type_]
@@ -96,6 +104,7 @@ func ProcessAIModelInit()error{
 	//
 	return nil
 }
+*/
 func ProcessAIModel(model_type string,user string,arguments map[string]interface{}){
 	if model_type=="RLFGH"{
 		ProcessRlfgh(user,arguments["face"].(string),arguments["wordFile"].(string))
@@ -109,18 +118,29 @@ func ProcessAIModel(model_type string,user string,arguments map[string]interface
 		ProcessKouTu(user,arguments["image"].(string))
 	}
 }
+
+//
 func ProcessXNCY(user string, person string, clothes string) {
 	var err error
 	// 执行SourceProcessProgram并获取输出值
-	merge := RandomFileNameWithSuffix(".png")
+	generate := RandomFileNameWithSuffix(".png")
 	//
+	/*
 	channel:=ModelProcess["XNCY"]
-	err=channel.Write(person,clothes,merge)
+	err=channel.Write(person,clothes,generate)
 	if err!=nil{
 		Debug("写入虚拟穿衣管道失败!")
 	}
+	*/
+	//写入待处理队列
+	var info XNCYInfo
+	info.account=user
+	info.person=person
+	info.clothes=clothes
+	info.generate=generate
+	XNCYQueue.push(info)
 	//
-	err = AddDataToXNCY(user, person, clothes, merge)
+	err = AddDataToXNCY(user, person, clothes, generate)
 	if err != nil {
 		Debug(err.Error())
 	}
@@ -129,15 +149,23 @@ func ProcessXNCY(user string, person string, clothes string) {
 func ProcessWST(user string, wordFile string) {
 	var err error
 	//
-	merge:=RandomFileNameWithSuffix(".png")
+	generate:=RandomFileNameWithSuffix(".png")
 	//
+	/*
 	channel :=ModelProcess["WST"] 
-	err=channel.Write(wordFile,merge)
+	err=channel.Write(wordFile,generate)
 	if err!=nil{
 		Debug("写入文生图管道失败!")
 	}
+	*/
+	//写入待处理队列
+	var info WSTInfo
+	info.account=user
+	info.description=wordFile
+	info.generate=generate
+	WSTQueue.push(info)
 	//
-	err = AddDataToWST(user,wordFile,merge)
+	err = AddDataToWST(user,wordFile,generate)
 	if err != nil {
 		Debug(err.Error())
 	}
@@ -146,15 +174,24 @@ func ProcessWST(user string, wordFile string) {
 func ProcessRlfgh(user string ,face string,wordFile string){
 	var err error
 	//
-	merge:=RandomFileNameWithSuffix(".png")
+	generate:=RandomFileNameWithSuffix(".png")
 	//
+	/*
 	channel :=ModelProcess["RLFGH"] 
-	err=channel.Write(face,wordFile,merge)//写入参数
+	err=channel.Write(face,wordFile,generate)//写入参数
 	if err!=nil{
 		Debug("写入人脸风格化管道失败!")
 	}
+	*/
+	//写入待处理队列
+	var info RLFGHInfo
+	info.account=user
+	info.description=wordFile
+	info.face=face
+	info.generate=generate
+	RLFGHQueue.push(info)
 	//向数据库加入一条记录
-	err= AddDataToRLFGH(user,face,wordFile,merge)
+	err= AddDataToRLFGH(user,face,wordFile,generate)
 	if err != nil {
 		Debug(err.Error())
 	}
@@ -163,16 +200,24 @@ func ProcessRlfgh(user string ,face string,wordFile string){
 func ProcessPortrait(user string,face string){
 	var err error
 	// 执行SourceProcessProgram并获取输出值
-	merge := RandomFileNameWithSuffix(".png")
+	generate := RandomFileNameWithSuffix(".png")
 
 	//
+	/*
 	channel :=ModelProcess["Portrait"] 
-	err=channel.Write(face,merge)
+	err=channel.Write(face,generate)
 	if err!=nil{
 		Debug("写入人脸肖像化管道失败!")
 	}
+	*/
+	//写入待处理队列
+	var info PortraitInfo
+	info.account=user
+	info.person=face
+	info.generate=generate
+	PortraitQueue.push(info)
 	//
-	err = AddDataToPortrait(user,face,merge)
+	err = AddDataToPortrait(user,face,generate)
 	if err != nil {
 		Debug(err.Error())
 	}
@@ -180,17 +225,120 @@ func ProcessPortrait(user string,face string){
 func ProcessKouTu(user string,image string){
 	var err error
 	// 执行SourceProcessProgram并获取输出值
-	merge := RandomFileNameWithSuffix(".png")
+	generate := RandomFileNameWithSuffix(".png")
 
 	//
+	/*
 	channel :=ModelProcess["KouTu"] 
-	err=channel.Write(image,merge)
+	err=channel.Write(image,generate)
 	if err!=nil{
 		Debug("写入抠图管道失败!")
 	}
+	*/
+	//写入待处理队列
+	var info KouTuInfo
+	info.account=user
+	info.image=image
+	info.generate=generate
+	KouTuQueue.push(info)
 	//
-	err = AddDataToKouTu(user,image,merge)
+	err = AddDataToKouTu(user,image,generate)
 	if err != nil {
 		Debug(err.Error())
+	}
+}
+
+//处理模型机对本机的待生成任务的请求
+func ProcessAIModelTasksHandler(cookie string,w http.ResponseWriter,r*http.Request){
+	//如果不是内部cookie直接返回
+	if !CheckCookieUsedPrivate(cookie){
+		return
+	}
+	//获取类型
+	type2:=r.Header.Get("type2")
+	//
+	var js Json
+	sendStatus:=false
+	if type2=="XNCY"{
+		XNCYQueue.hold()
+		defer XNCYQueue.release()
+		sendStatus=len(XNCYQueue.queue)!=0
+		//
+		for idx,ele:=range XNCYQueue.queue{
+			var js_ Json
+			js_.AppendString("user",ele.account)
+			js_.AppendString("person",ele.person)
+			js_.AppendString("clothes",ele.clothes)
+			js_.AppendString("generate",ele.generate)
+			js.AppendJson(strconv.Itoa(idx),js_)
+		}
+		//
+		XNCYQueue.clear()
+	}else if type2=="WST"{
+		WSTQueue.hold()
+		defer WSTQueue.release()
+		sendStatus=len(WSTQueue.queue)!=0
+		//
+		for idx,ele:=range WSTQueue.queue{
+			var js_ Json
+			js_.AppendString("user",ele.account)
+			js_.AppendString("description",ele.description)
+			js_.AppendString("generate",ele.generate)
+			js.AppendJson(strconv.Itoa(idx),js_)
+		}
+		//
+		WSTQueue.clear()
+	}else if type2=="RLFGH"{
+		RLFGHQueue.hold()
+		defer RLFGHQueue.release()
+		sendStatus=len(RLFGHQueue.queue)!=0
+		//
+		for idx,ele:=range RLFGHQueue.queue{
+			var js_ Json
+			js_.AppendString("user",ele.account)
+			js_.AppendString("face",ele.face)
+			js_.AppendString("description",ele.description)
+			js_.AppendString("generate",ele.generate)
+			js.AppendJson(strconv.Itoa(idx),js_)
+		}
+		//
+		RLFGHQueue.clear()
+	}else if type2=="Portrait"{
+		PortraitQueue.hold()
+		defer PortraitQueue.release()
+		sendStatus=len(PortraitQueue.queue)!=0
+		//
+		for idx,ele:=range PortraitQueue.queue{
+			var js_ Json
+			js_.AppendString("user",ele.account)
+			js_.AppendString("person",ele.person)
+			js_.AppendString("generate",ele.generate)
+			js.AppendJson(strconv.Itoa(idx),js_)
+		}
+		//
+		PortraitQueue.clear()
+	}else if type2=="KouTu"{
+		KouTuQueue.hold()
+		defer KouTuQueue.release()
+		sendStatus=len(KouTuQueue.queue)!=0
+		//
+		for idx,ele:=range KouTuQueue.queue{
+			var js_ Json
+			js_.AppendString("user",ele.account)
+			js_.AppendString("image",ele.image)
+			js_.AppendString("generate",ele.generate)
+			js.AppendJson(strconv.Itoa(idx),js_)
+		}
+		//
+		KouTuQueue.clear()
+	}else{
+		Debug("没有对应的任务队列!")
+	}
+	//
+	_,err:=w.Write([]byte(js.Get()))
+	if err!=nil{
+		Debug("发送模型消息队列失败!")
+	}else if sendStatus{
+		Debug("发送模型消息队列成功!")
 	}
 }
