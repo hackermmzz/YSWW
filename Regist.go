@@ -26,8 +26,13 @@ func CheckAccountLegal(account string)error{
 	}
 	return nil
 }
+//检查userID是否合法
+func CheckUserIDLegal(userID string)bool{
+	length:=len(userID)
+	return length>0&&length<=20;
+}
 //
-func RegistAccount(account string,password string)error{
+func RegistAccount(account string,userID string,password string)error{
 	//检测用户和密码是否合法
 	err:=CheckAccountLegal(account)
 	if err!=nil{
@@ -37,8 +42,12 @@ func RegistAccount(account string,password string)error{
 	if err!=nil{
 		return err
 	}
+	//检测用户的昵称是否合法
+	if !CheckUserIDLegal(userID){
+		return errors.New("用户昵称不合法!")
+	}
 	//向数据库添加用户
-	err=AddUser(account,password,0)
+	err=AddUser(account,userID,password,0)
 	if err==nil{
 		//添加用户到进程
 		AllUsers.Store(account,password)
@@ -76,16 +85,31 @@ func CheckRegistAccountMatchVerifyCode(account string,code string)bool{
 }
 //
 func ProcessRegistRequest(r* http.Request,w http.ResponseWriter)error{
-	account := r.Header.Get("account")
-	passwd:=r.Header.Get("password")
-	verifyCode:=r.Header.Get("verifyCode")
+	//从请求体拿到数据
+	data,err:=ProcessJsonRequestBody(r)
+	if err!=nil{
+		return err
+	}
+	//拿到各个字段
+	var account,userID,passwd,verifyCode string
+	{
+		var legal0,legal1,legal2,legal3 bool
+		account,legal0= data["account"].(string)
+		userID,legal1=data["userID"].(string)
+		passwd,legal2=data["password"].(string)
+		verifyCode,legal3=data["verifyCode"].(string)
+		if account==""||userID==""||passwd==""||verifyCode==""||!legal0||!legal1||!legal2||!legal3{
+			return errors.New("存在字段为空!")
+		}
+	}
+	//
 	var json Json;
 	if CheckRegistAccountMatchVerifyCode(account,verifyCode)==false{
 		json.AppendBool("status",false)
 		json.AppendString("msg","验证码错误")
 	}else if CheckIsUserExist(account) == false {
 		//
-		err:=RegistAccount(account,passwd)
+		err:=RegistAccount(account,userID,passwd)
 		if err==nil{
 			json.AppendBool("status",true)
 			json.AppendString("msg","regist success")
@@ -100,7 +124,7 @@ func ProcessRegistRequest(r* http.Request,w http.ResponseWriter)error{
 		json.AppendString("msg","user exist")
 	}
 	resp:=json.Get()
-	_,err:=w.Write([]byte(resp))
+	_,err=w.Write([]byte(resp))
 	return err
 }
 
@@ -108,7 +132,7 @@ func ProcessRegistRequest(r* http.Request,w http.ResponseWriter)error{
 func ProcessRegistHanler(cookie string,w http.ResponseWriter,r*http.Request){
 	err:=ProcessRegistRequest(r,w)
 	if err!=nil{
-		Debug("regist error!")
+		Debug("regist error!"+err.Error())
 	}
 }
 

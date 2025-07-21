@@ -7,11 +7,13 @@ import(
 type void struct{}
 
 
-type User struct {
+type UserInfo struct {
     email   string
+	userID	string
     passwd  string
 	date 	string
 	vip		int
+	avatar	string
 }
 
 type XNCYInfo struct{
@@ -63,6 +65,12 @@ type RegistVerityCodeInfo struct{
 	status	bool
 }
 
-func (user*User) Print(){
+type VIPInfo struct{
+	account 	string
+	start_time 	string
+	end_time   	string
+}
+
+func (user*UserInfo) Print(){
 	fmt.Println("email:"+user.email+" password:"+user.passwd+" date:"+user.date+" vip:"+strconv.Itoa(user.vip))
 }

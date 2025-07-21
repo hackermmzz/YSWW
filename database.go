@@ -10,6 +10,7 @@ import (
 	"strings"
 	_ "github.com/go-sql-driver/mysql"
 	"sync"
+	"errors"
 	"time"
 )
 
@@ -159,16 +160,16 @@ func GetHomeInfo()error{
 	return nil
 }
 func GetAllUsers() (map[string]string, error) {
-	cmd := "select * from " + "users;"
+	cmd := "select email,password from " + "users;"
 	row, err := db.Query(cmd)
 	if err != nil {
 		return nil, err
 	}
 	defer row.Close()
 	ret := make(map[string]string)
-	var userInfo User;
+	var userInfo UserInfo;
 	for row.Next() {
-		err := row.Scan(&userInfo.email,&userInfo.passwd,&userInfo.date,&userInfo.vip)
+		err := row.Scan(&userInfo.email,&userInfo.passwd)
 		if err != nil {
 			return nil, err
 		}
@@ -176,9 +177,9 @@ func GetAllUsers() (map[string]string, error) {
 	}
 	return ret, nil
 }
-func AddUser(email string,passwd string,vip int) error {
-	value:=MergeByCommaAndQuo(email,passwd)+",CURRENT_TIMESTAMP,"+MergeByCommaAndQuo(strconv.Itoa(vip))
-	cmd := "insert into " + "users" + " values(" +value+");"
+func AddUser(email string,userID string,passwd string,vip int) error {
+	value:=MergeByCommaAndQuo(email,userID,passwd,strconv.Itoa(vip))
+	cmd := "insert into " + "users(email,userID,password,vip)" + " values(" +value+");"
 	_, err:= db.Exec(cmd)
 	if err != nil {
 		return err
@@ -489,6 +490,63 @@ func UpdateUserVIPStatus(account string,status bool)error{
 		status_s="false"
 	}
 	cmd:="update users set vip="+status_s+" where email="+MarkByQuo(account);
+	_,err:=db.Exec(cmd)
+	return err
+}
+//获取对应用户的昵称
+func GetUserInfo(account string)(UserInfo,error){
+	var info UserInfo
+	cmd:="select * from users where email="+MarkByQuo(account)
+	row,err:=db.Query(cmd)
+	if err!=nil{
+		return info,err
+	}
+	if row.Next(){
+		err:=row.Scan(&info.email,&info.userID,&info.passwd,&info.date,&info.vip,&info.avatar)
+		if err!=nil{
+			return info,err
+		}
+	}else{
+		return info,errors.New("没有对应的用户!")
+	}
+	return info,nil
+}
+
+func AddVIPInfo(user string)error{
+	cmd:="insert into vip(account,end_time) values("+MarkByQuo(user)+",DATE_ADD(NOW(), INTERVAL 1 YEAR)"+")"
+	_,err:=db.Exec(cmd)
+	return err
+}
+
+func GetVIPInfo(user string)(VIPInfo,error){
+	var info VIPInfo
+	cmd:="select * from vip where account="+MarkByQuo(user)
+	row,err:=db.Query(cmd)
+	if err!=nil{
+		return info,err
+	}
+	if row.Next(){
+		err=row.Scan(&info.account,&info.start_time,&info.end_time)
+	}else{
+		return info,errors.New("没有对应的账号信息!")
+	}
+	return info,err
+}
+
+func UpdateUserID(account string,userID string)error{
+	cmd:="update users set userID="+MarkByQuo(userID)+" where email="+MarkByQuo(account);
+	_,err:=db.Exec(cmd)
+	return err
+}
+
+func UpdateUserAvatar(account string,avatarFileName string)error{
+	cmd:="update users set avatar="+MarkByQuo(avatarFileName)+" where email="+MarkByQuo(account);
+	_,err:=db.Exec(cmd)
+	return err
+}
+
+func DeleteAccount(account string)error{
+	cmd:="delete from users where email="+MarkByQuo(account)
 	_,err:=db.Exec(cmd)
 	return err
 }

@@ -17,11 +17,11 @@ func ProcessPassWordChangeHandler(cookie string,w http.ResponseWriter,r*http.Req
 	//
 	new_passwd:=r.Header.Get("new_passwd")//新密码
 	origin_Passwd:=r.Header.Get("password")//用户传来的原密码
-	current_passwd,_:=AllUsers.Load(user)//真正的密码
+	current_passwd,_:=GetUserPassword(user)//真正的密码
 	if origin_Passwd!=current_passwd{
 		js.AppendBool("status",false)
 		js.AppendString("msg","原密码错误!")
-	}else if CheckPassWordIsSame(current_passwd.(string),new_passwd){
+	}else if CheckPassWordIsSame(current_passwd,new_passwd){
 		//如果与之前的密码相同,或者检测密码是否不合法，那么不理睬
 		js.AppendBool("status",false)
 		js.AppendString("msg","新密码与原来的密码相同!")

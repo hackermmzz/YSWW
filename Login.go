@@ -6,6 +6,15 @@ import(
 	"errors"
 	"unicode"
 )
+//获取当前用户的密码
+func GetUserPassword(account string)(string,error){
+	passwd_,exist:=AllUsers.Load(account)
+	if !exist{
+		return "",errors.New("用户不存在!")
+	}
+	passwd,_:=passwd_.(string)
+	return passwd,nil
+}
 //检查密码是否相同
 func CheckPassWordIsSame(current string,expected string)bool{
 	return current==expected;
@@ -90,25 +99,47 @@ func CheckIsUserExist(account string)bool{
 
 
 func ProcessLoginRequest(r*http.Request,w http.ResponseWriter,cookie string)error{
-	account := r.Header.Get("account")
-	passwd:=r.Header.Get("password")
+	//解析请求体获取数据
+	data,err:=ProcessJsonRequestBody(r)
+	if err!=nil{
+		return err
+	}
+	//
+	var account,passwd string
+	{
+		var legal0,legal1 bool
+		account,legal0=data["account"].(string)
+		passwd,legal1=data["password"].(string)
+		if passwd==""||account==""||!legal0||!legal1{
+			return errors.New("存在字段为空!")
+		}
+	}
+	//
 	var json Json;
 	cookie,set_cookie:=GenerateCookie(account,passwd)//生成一个cookie用于维护账户的信息
 	//检查是否可以登录
 	if CheckCanLogin(account,passwd,cookie){
 		//将cookie加到维护队列,无论是否之前是否维护了
 		AddCookie(account,cookie)
+		//获取用户昵称
+		userinfo,err:=GetUserInfo(account)
+		if err!=nil{
+			return errors.New("获取用户昵称失败"+err.Error())
+		}
 		//
+		json.AppendBool("vip",bool(userinfo.vip==1))
+		json.AppendString("date",userinfo.date)
+		json.AppendString("userID",userinfo.userID)
 		json.AppendString("msg","登录成功")
 		json.AppendBool("status",true)
+		json.AppendString("avatar",userinfo.avatar)
 		//设置一下set-cookie
 		w.Header().Set("Set-Cookie",set_cookie)
 	}else{
 		json.AppendString("msg","账号不存在或者密码错误!")
 		json.AppendBool("status",false)
-		return errors.New("用户"+account+"不存在")
 	}
-	_,err:=w.Write([]byte(json.Get()))
+	_,err=w.Write([]byte(json.Get()))
 	return err
 }
 
@@ -120,4 +151,43 @@ func ProcessLoginHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	}else{
 		Debug("用户:"+r.Header.Get("account")+"登录成功!")
 	}
+}
+//删除账户
+func ProcessDeleteAccountHandler(cookie string,w http.ResponseWriter,r*http.Request){
+	//
+	exist,user:=CheckCookieLegal(cookie)
+	if !exist{
+		Debug("cookie不存在")
+		return
+	}
+	//
+	data,err:=ProcessJsonRequestBody(r)
+	if err!=nil{
+		Debug(err.Error())
+		return
+	}
+	//获取密码来确认
+	var js Json
+	passwd,err:=GetUserPassword(user)
+	comfired_passwd,legal:=data["password"].(string)
+	if err!=nil||!legal{
+		Debug(user+"删除账号异常!")
+		js.AppendBool("status",false)
+		js.AppendString("msg","服务器异常!")
+	}else if !CheckPassWordIsSame(passwd,comfired_passwd){//检查密码是否匹配
+		Debug(user+"删除账号错误!")
+		js.AppendBool("status",false)
+		js.AppendString("msg","密码不匹配!")
+	}else if err=DeleteAccount(user);err!=nil{//将账户从数据库删除
+		Debug(user+"删除账号异常!")
+		js.AppendBool("status",false)
+		js.AppendString("msg","服务器异常!")
+	}else{
+		js.AppendBool("status",true)
+		js.AppendString("msg","注销成功!期待下次再见"+user)
+		Debug("用户:"+user+"注销成功")
+	}
+	//
+	_,err=w.Write([]byte(js.Get()))
+	
 }

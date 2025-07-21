@@ -188,6 +188,11 @@ func ConfigRequestHandler(){
 	RequestHandler["SendEmail"]=ProcessSendEmailRequestHandler;
 	RequestHandler["AIModelTask"]=ProcessAIModelTasksHandler;
 	RequestHandler["Tip"]=ProessTipHandler;
+	RequestHandler["UserHome"]=ProcessUserHomeHandler;
+	RequestHandler["userIDChange"]=ProcessUserIDChangeHandler;
+	RequestHandler["avatarChange"]=ProcessAvatarChangeHandler;
+	RequestHandler["UserFeedback"]=ProcessUserFeedbackHandler;
+	RequestHandler["deleteAccount"]=ProcessDeleteAccountHandler;
 }
 
 func InitAllAllowOrigins(){
