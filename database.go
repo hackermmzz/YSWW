@@ -35,6 +35,7 @@ var (
 	Cookie					  sync.Map //将cookie和用户相关联
 	HomeInfo 				  string //主页面显示文件
 	HomeInfoDiv					map[string]string//主页面进行分类别
+	RequestMaxProcess			  int //可并行处理的最大数量
 )
 
 ////////////////////////////////////////
@@ -129,6 +130,12 @@ func InitDatabase() {
 		return
 	}
 	FileMaxSize <<= 20 //FileMaxSize mb
+
+	RequestMaxProcess,err=strconv.Atoi(ConfigInfo["RequestMaxProcess"])
+	if err!=nil{
+		Debug("读取最大处理数量失败!")
+		return
+	}
 	//连接数据库
 	ConnectToDataBase(ConfigInfo["UserName"], ConfigInfo["PassWord"], DataBaseName)
 	//获取所有的用户

@@ -116,7 +116,7 @@ func ResponseHistoryInfo(cookie string, w http.ResponseWriter) error {
 			js.AppendBool("status",info.status)
 			//
 			id+=1
-			infoAll.AppendJson("kouTu"+"_"+strconv.Itoa(id),js)
+			infoAll.AppendJson("KouTu"+"_"+strconv.Itoa(id),js)
 		}
 	}
 	_, err:= w.Write([]byte(infoAll.Get()))

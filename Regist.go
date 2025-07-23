@@ -15,10 +15,10 @@ var RegistVerifyCodeMap sync.Map
 //检测用户是否合法
 func CheckAccountLegal(account string)error{
 	//长度不能超过20并且格式为A@B.C,只能为字母和数字
-	if len(account)>20{
-		return errors.New("邮箱长度不能超过20!")
+	if len(account)>30{
+		return errors.New("邮箱长度不能超过30!")
 	}else{
-		re := regexp.MustCompile(`^[a-zA-Z0-9]+@[a-zA-Z0-9]+.com$`)
+		re := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 		match:=re.MatchString(account)
 		if !match{
 			return errors.New("邮箱格式不正确!")

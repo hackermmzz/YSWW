@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"io"
 	"encoding/json"
+	"net"
 )
 
 // ///////////////////////////////////////
@@ -53,7 +54,14 @@ func InitServer() {
 		Debug("server is running!")
 		//等待GPU服务器连接
 		//
-		err = server.ListenAndServeTLS("", "")
+		listener,err:=net.Listen("tcp",port)
+		if err!=nil{
+			Debug("监听端口失败!")
+			return 
+		}
+		tlsListener:=tls.NewListener(listener, config)
+		limitedListener:=NewListner(tlsListener,RequestMaxProcess)
+		err = server.Serve(limitedListener)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -113,10 +121,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}else{
 		Debug("request操作:"+requestType+"不存在!")
 	}
+	//
+
 }	
 
+func IncreaseRequest(r *http.Request){
+	//这里单纯进行一次加操作就可以
 
-
+}
 func RandomFileName() string {
 	res := make([]byte, DataBaseFileNameMaxLength)
 	for i := 0; i < DataBaseFileNameMaxLength; i++ {
