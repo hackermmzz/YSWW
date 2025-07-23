@@ -2,7 +2,6 @@ package main
 
 
 import(
-	"fmt"
 	"net/http"
 	"strconv"
 	"errors"
@@ -11,7 +10,7 @@ import(
 func ProcessHistoryInfoHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	err := ResponseHistoryInfo(cookie, w)
 	if err != nil {
-		fmt.Println(err)
+		Debug(err.Error())
 		return
 	}
 }

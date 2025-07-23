@@ -1,7 +1,6 @@
 package main
 
 import(
-	"fmt"
 	"net/http"
 	"errors"
 	"os"
@@ -149,14 +148,14 @@ func ProcessRnfghWordFile(user string,r *http.Request, w http.ResponseWriter) st
 	localFileName := SourceDirectory + "/" + wordFileName
 	out, err := os.Create(localFileName)
 	if err != nil {
-		fmt.Printf("failed to open the file %s for writing\n", localFileName)
+		Debug("failed to open the file "+localFileName+" for writing")
 		return ""
 	}
 	defer out.Close()
 	res:=make(map[string]interface{})
 	err = json.Unmarshal(body, &res)
 	if err != nil {
-		fmt.Println(err)
+		Debug(err.Error())
 		return ""
 	}
 	out.Write([]byte(res["description"].(string)))
@@ -171,14 +170,14 @@ func ProcessWenShengTu(user string, r *http.Request, w http.ResponseWriter) stri
 	localFileName := SourceDirectory + "/" + wordFileName
 	out, err := os.Create(localFileName)
 	if err != nil {
-		fmt.Printf("failed to open the file %s for writing\n", localFileName)
+		Debug("failed to open the file "+localFileName+" for writing\n")
 		return ""
 	}
 	defer out.Close()
 	res:=make(map[string]interface{})
 	err = json.Unmarshal(body, &res)
 	if err != nil {
-		fmt.Println(err)
+		Debug(err.Error())
 		return ""
 	}
 	out.Write([]byte(res["description"].(string)))
@@ -189,7 +188,7 @@ func ProcessWenShengTu(user string, r *http.Request, w http.ResponseWriter) stri
 func ProcessKouTuHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	err:=ProcessKouTuRequest(cookie,r,w)
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}else{
 		Debug("智能抠图正在生成...")
 	}
@@ -199,7 +198,7 @@ func ProcessKouTuHandler(cookie string,w http.ResponseWriter,r*http.Request){
 func ProcessPortraitHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	err:=ProcessPortraitRequest(cookie,r,w)
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}else{
 		Debug("人脸肖像正在生成")
 	}
@@ -209,7 +208,7 @@ func ProcessPortraitHandler(cookie string,w http.ResponseWriter,r*http.Request){
 func ProcessWenShengTuHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	err:=ProcessWSTRequest(cookie,r,w)
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}else{
 		Debug("文生图正在生成...")
 	}
@@ -218,7 +217,7 @@ func ProcessWenShengTuHandler(cookie string,w http.ResponseWriter,r*http.Request
 func ProcessRlfghHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	err:=ProcessRlfghRequest(cookie,r,w)
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}
 }
 

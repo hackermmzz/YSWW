@@ -23,7 +23,7 @@ func DownLoadFile(r *http.Request) string {
 	for k := range mForm.File {
 		file,header, err := r.FormFile(k)
 		if err != nil {
-			fmt.Println("inovke FormFile error:", err)
+			Debug("inovke FormFile error:"+err.Error())
 			return ""
 		}
 		defer file.Close()
@@ -38,13 +38,13 @@ func DownLoadFile(r *http.Request) string {
 		localFileName := SourceDirectory + "/" + fileName
 		out, err := os.Create(localFileName)
 		if err != nil {
-			fmt.Printf("failed to open the file %s for writing\n", localFileName)
+			Debug("failed to open the file "+localFileName+" for writing")
 			return ""
 		}
 		defer out.Close()
 		_, err = io.Copy(out, file)
 		if err != nil {
-			fmt.Printf("copy file err:%s\n", err)
+			Debug("copy file err:"+err.Error())
 			return ""
 		}
 		////////////////////////////////////////////////////////////////返回文件名称

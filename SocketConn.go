@@ -56,7 +56,7 @@ func MakeSocketConn(name string, port int) (*SocketConn, error) {
 		return nil, err
 	}
 	//接受客户端连接
-	fmt.Println("开始监听端口:"+strconv.Itoa(port))
+	Debug("开始监听端口:"+strconv.Itoa(port))
 	ret := &SocketConn{
 			name:     name,
 			conn:    nil,

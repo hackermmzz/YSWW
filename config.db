@@ -7,3 +7,4 @@ DataBaseMaxIdleConns=10
 DataBaseFileNameMaxLength=30
 FileMaxSize=8
 RequestMaxProcess=100
+fileDebug=true

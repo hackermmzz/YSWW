@@ -2,7 +2,6 @@ package main
 
 import(
 	"net/http"
-	"fmt"
 	"errors"
 	"unicode"
 )
@@ -147,7 +146,7 @@ func ProcessLoginRequest(r*http.Request,w http.ResponseWriter,cookie string)erro
 func ProcessLoginHandler(cookie string,w http.ResponseWriter,r*http.Request){
 	err:=ProcessLoginRequest(r,w,cookie);
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}else{
 		Debug("用户:"+r.Header.Get("account")+"登录成功!")
 	}

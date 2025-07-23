@@ -1,7 +1,6 @@
 package main
 
 import(
-	"fmt"
 	"net/http"
 	"strconv"
 	"errors"
@@ -34,7 +33,7 @@ func ProcessPlayCountQueryHanlder(cookie string,w http.ResponseWriter,r*http.Req
 	//
 	err:=ProcessPlayCountQuery(cookie,r,w)
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}
 }
 //

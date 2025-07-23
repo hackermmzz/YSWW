@@ -1,6 +1,5 @@
 package main
 import(
-	"fmt"
 	"strconv"
 )
 
@@ -72,5 +71,5 @@ type VIPInfo struct{
 }
 
 func (user*UserInfo) Print(){
-	fmt.Println("email:"+user.email+" password:"+user.passwd+" date:"+user.date+" vip:"+strconv.Itoa(user.vip))
+	Debug("email:"+user.email+" password:"+user.passwd+" date:"+user.date+" vip:"+strconv.Itoa(user.vip))
 }

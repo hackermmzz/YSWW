@@ -2,7 +2,6 @@ package main
 
 import(
 	"net/http"
-	"fmt"
 )
 
 //修改密码
@@ -35,7 +34,7 @@ func ProcessPassWordChangeHandler(cookie string,w http.ResponseWriter,r*http.Req
 		AllUsers.Store(user,new_passwd)
 		//
 		if err!=nil{
-			fmt.Println(err)
+			Debug(err.Error())
 		}else{
 			Debug("用户:"+user+"修改密码成功!")
 			js.AppendBool("status",true)
@@ -44,6 +43,6 @@ func ProcessPassWordChangeHandler(cookie string,w http.ResponseWriter,r*http.Req
 	}
 	_,err:=w.Write([]byte(js.Get()))
 	if err!=nil{
-		fmt.Println(err)
+		Debug(err.Error())
 	}
 }

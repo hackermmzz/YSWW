@@ -1,17 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"database/sql"
-	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	_ "github.com/go-sql-driver/mysql"
 	"sync"
 	"errors"
-	"time"
 )
 
 // //////////////////////////////
@@ -36,23 +32,12 @@ var (
 	HomeInfo 				  string //主页面显示文件
 	HomeInfoDiv					map[string]string//主页面进行分类别
 	RequestMaxProcess			  int //可并行处理的最大数量
+	fileDebug						bool //是否开启文件记录调试信息
 )
 
 ////////////////////////////////////////
 
-// 调试函数
-func Debug(message string) {
-	now:=time.Now()
-	//获取当前时间
-	year := strconv.Itoa(now.Year())     
-	month := strconv.Itoa(int(now.Month()))  
-	day := strconv.Itoa(now.Day())  
-	hour:=strconv.Itoa(now.Hour())
-	minute:=strconv.Itoa(now.Minute())
-	second:=strconv.Itoa(now.Second())
-	time_:=year+"-"+month+"-"+day+"-"+hour+"点"+minute+"分"+second+"秒"
-	fmt.Println(time_+" "+message)
-}
+
 
 //
 func ConnectToDataBase(username string, password string, database string) {
@@ -61,81 +46,23 @@ func ConnectToDataBase(username string, password string, database string) {
 	//连接数据集
 	db, err = sql.Open("mysql", dsn)
 	if err != nil {
-		fmt.Printf("dsn:%s invalid,err:%v\n", dsn, err)
+		Debug("dsn:"+dsn+" invalid,err:"+err.Error())
 		return
 	}
 	err = db.Ping() //尝试连接数据库
 	if err != nil {
-		fmt.Printf("open %s faild,err:%v\n", dsn, err)
+		Debug("open "+dsn+" faild,err:"+err.Error())
 		return
 	}
 
 	db.SetMaxIdleConns(DataBaseMaxIdleConns)
 	_, err = db.Exec("use " + DataBaseName)
 	if err != nil {
-		fmt.Print(err.Error())
+		Debug(err.Error())
 	}
-	fmt.Println("连接数据库成功~")
+	Debug("连接数据库成功~")
 }
 func InitDatabase() {
-	////////////////////读取配置文件
-	file, err := os.OpenFile("config.db", os.O_RDONLY, 0644)
-	if err != nil {
-		Debug("Could not open config.db")
-		return
-	}
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		if len(scanner.Text()) != 0 {
-			lines = append(lines, scanner.Text())
-		}
-	}
-	////////////////////配置信息
-	ConfigInfo = make(map[string]string)
-	for _, line := range lines {
-		split := strings.Split(line, "=")
-		if len(split) == 2 {
-			ConfigInfo[split[0]] = split[1]
-		}
-	}
-	/////////////////配置变量
-	SourceProcessProgram = ConfigInfo["SourceProcessProgram"]
-	/*SourceProcessProgram, err = filepath.Abs(SourceProcessProgram)
-	if err != nil {
-		Debug("Could not find SourceProcessProgram configuration!")
-		return
-	}*/
-	//
-	SourceDirectory = ConfigInfo["SourceDirectory"]
-	SourceDirectory, err = filepath.Abs(SourceDirectory)
-	if err != nil {
-		Debug("Could not find SourceDirectory configuration!")
-		return
-	}
-	DataBaseMaxIdleConns, err = strconv.Atoi(ConfigInfo["DataBaseMaxIdleConns"])
-	if err != nil {
-		Debug("Could not find DataBaseMaxIdleConns configuration!")
-		return
-	}
-	DataBaseName = ConfigInfo["DataBaseName"]
-	DataBaseFileNameMaxLength, err = strconv.Atoi(ConfigInfo["DataBaseFileNameMaxLength"])
-	if err != nil {
-		Debug("Could not find DataBaseFileNameMaxLength")
-		return
-	}
-	FileMaxSize, err = strconv.Atoi(ConfigInfo["FileMaxSize"])
-	if err != nil {
-		Debug("Could not find FileMaxSize")
-		return
-	}
-	FileMaxSize <<= 20 //FileMaxSize mb
-
-	RequestMaxProcess,err=strconv.Atoi(ConfigInfo["RequestMaxProcess"])
-	if err!=nil{
-		Debug("读取最大处理数量失败!")
-		return
-	}
 	//连接数据库
 	ConnectToDataBase(ConfigInfo["UserName"], ConfigInfo["PassWord"], DataBaseName)
 	//获取所有的用户
