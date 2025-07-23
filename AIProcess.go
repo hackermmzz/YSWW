@@ -10,7 +10,7 @@ import(
 )
 ////////////////////////////////////////////////
 var XNCYDataMap 	sync.Map
-var RnfghDataMap	sync.Map
+var RlfghDataMap	sync.Map
 ////////////////////////////////////////////////
 func ProcessRlfghRequest(cookie string,r* http.Request,w http.ResponseWriter)error{
 	//检查cookie是否合法
@@ -19,10 +19,10 @@ func ProcessRlfghRequest(cookie string,r* http.Request,w http.ResponseWriter)err
 		return errors.New("cookie不存在")
 	}
 	//
-	info_,exist:=RnfghDataMap.Load(user)
+	info_,exist:=RlfghDataMap.Load(user)
 	if !exist{
-		RnfghDataMap.Store(user,make([]string,2))
-		info_,exist=RnfghDataMap.Load(user)
+		RlfghDataMap.Store(user,make([]string,2))
+		info_,exist=RlfghDataMap.Load(user)
 	}
 	info:=info_.([]string)
 	//

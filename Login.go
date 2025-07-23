@@ -184,9 +184,21 @@ func ProcessDeleteAccountHandler(cookie string,w http.ResponseWriter,r*http.Requ
 	}else{
 		js.AppendBool("status",true)
 		js.AppendString("msg","注销成功!期待下次再见"+user)
+		//将信息从维护的全局账户移除
+		DeleteUserAllInfoMantancedByProcess(user)
+		//
 		Debug("用户:"+user+"注销成功")
 	}
 	//
 	_,err=w.Write([]byte(js.Get()))
 	
+}
+//移除所有由进程维护的信息
+func DeleteUserAllInfoMantancedByProcess(account string){
+	//移除用户信息
+	AllUsers.Delete(account)
+	//移除cookie信息
+	//移除各种ai所需要的信息
+	XNCYDataMap.Delete(account)
+	RlfghDataMap.Delete(account)
 }
