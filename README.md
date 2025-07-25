@@ -57,7 +57,7 @@ pip install -r requirements.txt
 
 # 运行
 
-flask run
+go run ./
 
 ```
 #### 使用说明
